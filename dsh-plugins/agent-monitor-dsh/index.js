@@ -2,6 +2,7 @@ export const name = "agent-monitor-dsh"
 
 import fs from "node:fs"
 import path from "node:path"
+import http from "node:http"
 import { fileURLToPath } from "node:url"
 
 const dbg = (msg) => {
@@ -30,6 +31,11 @@ const mapTokens = (u) => {
 
 export function apply(ctx, config = {}) {
   const url = config.url || process.env.AGENT_MONITOR_URL || "http://127.0.0.1:17893/api/ingest"
+  if (!apply.exitHooked) {
+    apply.exitHooked = true
+    process.on("exit", (c) => dbg("process exit code=" + c))
+    process.on("beforeExit", () => dbg("beforeExit"))
+  }
   dbg("apply url=" + url + " configKeys=" + Object.keys(config || {}).join(","))
   const seen = new Set()
   const sid = () => (ctx.session && ctx.session.id) || config.sessionID || "dsh-main"
@@ -45,10 +51,19 @@ export function apply(ctx, config = {}) {
     dbg("push attempt n=" + evs.length + " identity=" + (identity ? "yes" : "no"))
     try {
       const body = JSON.stringify({ events: evs.map((e) => ({ ts: Date.now(), sessionID: sid(), ...e })), identity })
-      const ctl = new AbortController()
-      const t = setTimeout(() => ctl.abort(), 2000)
-      fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body, signal: ctl.signal }).then((r) => dbg("push ok " + r.status + " n=" + evs.length)).catch((e) => dbg("push err " + (e && e.message))).finally(() => clearTimeout(t))
-    } catch {}
+      const req = http.request(url, { method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } }, (res) => {
+        dbg("push ok " + res.statusCode + " n=" + evs.length)
+        res.resume()
+      })
+      req.on("error", (e) => dbg("push err " + (e && e.message)))
+      req.setTimeout(2500, () => {
+        dbg("push timeout n=" + evs.length)
+        req.destroy()
+      })
+      req.end(body)
+    } catch (e) {
+      dbg("push throw " + (e && e.message))
+    }
   }
   const statusOf = (p) => {
     const s = (p && (p.status || p.type)) || (p && p.running ? "busy" : "idle")
@@ -58,18 +73,32 @@ export function apply(ctx, config = {}) {
     return "idle"
   }
 
-  ctx.on("ready", () => {
+  const on = (name, fn) => {
+    ctx.on(name, (...args) => {
+      const next = args[args.length - 1]
+      const hasNext = typeof next === "function"
+      let r
+      try {
+        r = fn(...(hasNext ? args.slice(0, -1) : args))
+      } catch (e) {
+        dbg("handler err " + name + " " + (e && e.message))
+      }
+      return hasNext ? next() : r
+    })
+  }
+
+  on("ready", () => {
     dbg("ready fired")
     push([{ kind: "plugin.loaded" }], { harness: "deepseek-harness", agent: "dsh" })
   })
-  ctx.on("session/created", (s) => push([{ kind: "session.created", title: clip((s && (s.title || s.id)) || "", 120) }]))
-  ctx.on("session/before-turn", () => push([{ kind: "session.status", status: "busy" }]))
-  ctx.on("session/after-turn", () => push([{ kind: "session.status", status: "idle" }, { kind: "session.idle" }]))
-  ctx.on("agent/status", (p) => push([{ kind: "session.status", status: statusOf(p) }]))
-  ctx.on("agent/error", (e) => push([{ kind: "session.error", name: (e && e.name) || "AgentError", message: clip(e && e.message, 500) }]))
+  on("session/created", (s) => push([{ kind: "session.created", title: clip((s && (s.title || s.id)) || "", 120) }]))
+  on("session/before-turn", () => push([{ kind: "session.status", status: "busy" }]))
+  on("session/after-turn", () => push([{ kind: "session.status", status: "idle" }, { kind: "session.idle" }]))
+  on("agent/status", (p) => push([{ kind: "session.status", status: statusOf(p) }]))
+  on("agent/error", (e) => push([{ kind: "session.error", name: (e && e.name) || "AgentError", message: clip(e && e.message, 500) }]))
 
   let envelopeLogged = false
-  ctx.on("session/event", (...args) => {
+  on("session/event", (...args) => {
     const ev = args.find((a) => a && a.type && (a.data || a.seq != null)) || args[1] || args[0] || {}
     if (!envelopeLogged) {
       envelopeLogged = true
@@ -97,6 +126,8 @@ export function apply(ctx, config = {}) {
       push([{ kind: "part.stream", partType: hasThinking ? "reasoning" : "text" }])
     } else if (t && t.indexOf("compaction/") === 0) {
       push([{ kind: t.indexOf("start") >= 0 ? "compaction.start" : "compaction.done", via: "dsh-session-log" }])
+    } else if (t === "request/header") {
+      push([], { harness: "deepseek-harness", model: (d.model && (d.model.id || d.model.name)) || d.model || d.modelID || undefined, providerID: (d.provider && (d.provider.id || d.provider.name)) || d.provider || d.providerID || undefined })
     } else if (t === "llm/retry" || t === "llm/retry-started") {
       push([{ kind: "api.retry", attempt: d.attempt || 1, statusCode: d.statusCode || d.status }])
     } else if (t === "todo/write") {
