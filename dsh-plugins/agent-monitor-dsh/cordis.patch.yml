@@ -1,0 +1,5 @@
+- insert:
+    - id: agent-monitor-dsh
+      name: agent-monitor-dsh
+      config:
+        url: http://127.0.0.1:17893/api/ingest
