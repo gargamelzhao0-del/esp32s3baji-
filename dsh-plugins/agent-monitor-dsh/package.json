@@ -1,20 +1,28 @@
 {
   "name": "agent-monitor-dsh",
-  "version": "1.0.0",
-  "description": "DeepSeek Harness (Cordis) plugin: push normalized agent observability events to agent-monitor-kit ingest",
+  "version": "1.1.0",
+  "description": "DeepSeek Harness observability plugin: floating in-UI monitor + bundled local server + normalized event push. Portable for any user.",
   "type": "module",
   "main": "index.js",
   "exports": {
-    ".": "./index.js"
+    ".": "./index.js",
+    "./client": "./client.js"
   },
   "files": [
     "index.js",
+    "client.js",
+    "server.mjs",
     "cordis.patch.yml",
     ".dsh-plugin"
   ],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["@deepseek-ai/dsh-client-ui-conversation"]
     }
   }
 }

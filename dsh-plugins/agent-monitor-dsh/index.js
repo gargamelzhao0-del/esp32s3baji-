@@ -3,6 +3,8 @@ export const name = "agent-monitor-dsh"
 import fs from "node:fs"
 import path from "node:path"
 import http from "node:http"
+import os from "node:os"
+import { spawn } from "node:child_process"
 import { fileURLToPath } from "node:url"
 
 const dbg = (msg) => {
@@ -30,7 +32,31 @@ const mapTokens = (u) => {
 }
 
 export function apply(ctx, config = {}) {
-  const url = config.url || process.env.AGENT_MONITOR_URL || "http://127.0.0.1:17893/api/ingest"
+  const port = parseInt(config.port || process.env.AGENT_MONITOR_PORT || "17893", 10)
+  const dataDir = config.dataDir || process.env.AGENT_MONITOR_DATA_DIR || path.join(os.homedir(), ".agent-monitor", "dsh")
+  const serverEntry = path.join(path.dirname(fileURLToPath(import.meta.url)), "server.mjs")
+  if (!apply.serverProbed && fs.existsSync(serverEntry)) {
+    apply.serverProbed = true
+    const spawnServer = () => {
+      try {
+        const child = spawn(process.execPath, [serverEntry], { env: { ...process.env, MONITOR_PORT: String(port), MONITOR_DATA_DIR: dataDir, MONITOR_DB: "none" }, stdio: "ignore", detached: true })
+        child.unref()
+        dbg("server spawned pid=" + child.pid + " port=" + port + " data=" + dataDir)
+      } catch (e) {
+        dbg("server spawn err " + (e && e.message))
+      }
+    }
+    const probe = http.get({ host: "127.0.0.1", port, path: "/api/state", timeout: 800 }, (res) => {
+      res.resume()
+      dbg("server already up port=" + port)
+    })
+    probe.on("error", spawnServer)
+    probe.on("timeout", () => {
+      probe.destroy()
+      spawnServer()
+    })
+  }
+  const url = config.url || process.env.AGENT_MONITOR_URL || "http://127.0.0.1:" + port + "/api/ingest"
   if (!apply.exitHooked) {
     apply.exitHooked = true
     process.on("exit", (c) => dbg("process exit code=" + c))
