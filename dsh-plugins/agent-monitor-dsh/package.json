@@ -1,0 +1,7 @@
+{
+  "name": "agent-monitor-dsh",
+  "version": "1.0.0",
+  "description": "DeepSeek Harness (Cordis) plugin: push normalized agent observability events to agent-monitor-kit ingest",
+  "type": "module",
+  "main": "index.js"
+}
