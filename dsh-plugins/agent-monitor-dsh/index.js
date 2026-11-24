@@ -38,7 +38,15 @@ export function apply(ctx, config = {}) {
   }
   dbg("apply url=" + url + " configKeys=" + Object.keys(config || {}).join(","))
   const seen = new Set()
-  const sid = () => (ctx.session && ctx.session.id) || config.sessionID || "dsh-main"
+  let lastSid = null
+  const sid = () => {
+    if (lastSid) return lastSid
+    try {
+      const s = ctx.session
+      if (s && s.id) return s.id
+    } catch {}
+    return config.sessionID || "dsh-main"
+  }
   const push = (events, identity) => {
     const evs = (events || []).filter((e) => {
       if (!e.dedupe) return true
@@ -99,6 +107,9 @@ export function apply(ctx, config = {}) {
 
   let envelopeLogged = false
   on("session/event", (...args) => {
+    const logObj = args[0]
+    if (logObj && logObj.header && logObj.header.id) lastSid = logObj.header.id
+    else if (logObj && logObj.id) lastSid = logObj.id
     const ev = args.find((a) => a && a.type && (a.data || a.seq != null)) || args[1] || args[0] || {}
     if (!envelopeLogged) {
       envelopeLogged = true
