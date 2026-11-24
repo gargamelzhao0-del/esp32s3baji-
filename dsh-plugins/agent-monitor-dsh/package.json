@@ -3,5 +3,18 @@
   "version": "1.0.0",
   "description": "DeepSeek Harness (Cordis) plugin: push normalized agent observability events to agent-monitor-kit ingest",
   "type": "module",
-  "main": "index.js"
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    ".dsh-plugin"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
 }
