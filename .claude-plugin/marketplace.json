@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "agent-monitor",
+  "description": "Universal real-time agent observability dashboard (local only).",
+  "owner": { "name": "gargamelzhao0-del" },
+  "plugins": [
+    {
+      "name": "agent-monitor",
+      "description": "Real-time agent activity dashboard: tools, tokens, errors, compaction, permissions. Local-only server on 127.0.0.1:17892.",
+      "author": { "name": "gargamelzhao0-del" },
+      "category": "productivity",
+      "source": "./plugins/agent-monitor"
+    }
+  ]
+}

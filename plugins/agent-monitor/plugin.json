@@ -1,0 +1,24 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agent-monitor",
+  "version": "1.2.0",
+  "description": "Universal real-time agent observability. One plugin for ChatGPT/Codex desktop, Codex CLI and Claude Code: lifecycle hooks push normalized events to a local-only dashboard (activity, tools, tokens, errors, compaction, permissions).",
+  "author": { "name": "gargamelzhao0-del" },
+  "license": "MIT",
+  "keywords": ["observability", "monitor", "dashboard", "hooks", "universal"],
+  "extensions": {
+    "com.openai": {
+      "hooks": "./hooks/hooks.json",
+      "interface": {
+        "displayName": "Agent Monitor",
+        "shortDescription": "Real-time agent activity dashboard (local only)",
+        "longDescription": "Streams session, tool, model-request, token, compaction and permission events to a bundled local server bound to 127.0.0.1. ChatGPT/Codex uses :17894, Claude Code :17892. Open http://127.0.0.1:17894 (or :17892 for Claude). No data leaves the machine.",
+        "developerName": "gargamelzhao0-del",
+        "category": "Productivity",
+        "capabilities": ["Read"],
+        "brandColor": "#58a6ff",
+        "defaultPrompt": ["Open the Agent Monitor dashboard and summarize current agent activity."]
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "agent-monitor",
+  "version": "1.2.0",
+  "description": "Universal real-time agent observability dashboard. Lifecycle hooks push normalized events to a local-only server (Claude Code :17892).",
+  "author": { "name": "gargamelzhao0-del" },
+  "hooks": "./hooks/hooks.json"
+}

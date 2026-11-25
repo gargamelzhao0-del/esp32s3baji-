@@ -1,0 +1,7 @@
+{
+  "name": "agent-monitor",
+  "version": "1.2.0",
+  "description": "Universal real-time agent observability dashboard for ChatGPT/Codex desktop and Codex CLI (:17894).",
+  "author": { "name": "gargamelzhao0-del" },
+  "hooks": "./hooks/hooks.json"
+}
