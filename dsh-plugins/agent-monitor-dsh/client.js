@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: "agent-monitor-dsh/float",
+  id: "agent-monitor-dsh",
   factory(require) {
     const React = require("react")
     const h = React.createElement
