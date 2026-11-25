@@ -340,7 +340,7 @@ function render(d){
   }).join("");
   var id = d.identity||{};
   var irows = [
-    ["运行时 harness", id.harness==="codex" ? ("Codex · "+(id.originator||"")+" "+(id.cliVersion||"")) : ("opencode（Nuwax 运行时）"+(id.runtimeVersion||""))],
+    ["运行时 harness", id.harness==="codex" ? ("Codex · "+(id.originator||"")+" "+(id.cliVersion||"")) : id.harness==="deepseek-harness" ? "DeepSeek Harness" : id.harness==="opencode" ? ("opencode（Nuwax 运行时）"+(id.runtimeVersion||"")) : (id.harness||"—")],
     ["平台智能体", id.platformAgent ? (id.platformAgent.agentName+"（agentId "+id.platformAgent.agentId+"）") : "—"],
     ["会话 agent", (id.agent||"—")+(id.mode?" · mode "+id.mode:"")],
     ["当前模型", (id.providerID?id.providerID+"/":"")+(id.modelID||id.model||"—")],

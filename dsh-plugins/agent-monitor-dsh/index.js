@@ -23,11 +23,14 @@ const clip = (v, n) => {
 const mapTokens = (u) => {
   if (!u) return { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 }, total: 0 }
   return {
-    input: u.input_tokens || u.input || 0,
-    output: u.output_tokens || u.output || 0,
-    reasoning: u.reasoning_tokens || u.reasoning || (u.output_tokens_details && u.output_tokens_details.thinking_tokens) || 0,
-    cache: { read: u.cache_read_input_tokens || (u.cache && u.cache.read) || 0, write: u.cache_creation_input_tokens || (u.cache && u.cache.write) || 0 },
-    total: u.total_tokens || u.total || 0,
+    input: u.inputTokens || u.input_tokens || u.input || 0,
+    output: u.outputTokens || u.output_tokens || u.output || 0,
+    reasoning: u.reasoningTokens || u.reasoning_tokens || u.reasoning || (u.output_tokens_details && u.output_tokens_details.thinking_tokens) || 0,
+    cache: {
+      read: u.cacheReadTokens || u.cache_read_input_tokens || (u.cache && u.cache.read) || 0,
+      write: u.cacheWriteTokens || u.cache_creation_input_tokens || (u.cache && u.cache.write) || 0,
+    },
+    total: u.totalTokens || u.total_tokens || u.total || 0,
   }
 }
 
@@ -73,7 +76,7 @@ export function apply(ctx, config = {}) {
     } catch {}
     return config.sessionID || "dsh-main"
   }
-  const push = (events, identity) => {
+  const push = (events, identity, status) => {
     const evs = (events || []).filter((e) => {
       if (!e.dedupe) return true
       if (seen.has(e.dedupe)) return false
@@ -81,10 +84,9 @@ export function apply(ctx, config = {}) {
       seen.add(e.dedupe)
       return true
     })
-    if (!evs.length && !identity) return
-    dbg("push attempt n=" + evs.length + " identity=" + (identity ? "yes" : "no"))
+    if (!evs.length && !identity && !status) return
     try {
-      const body = JSON.stringify({ events: evs.map((e) => ({ ts: Date.now(), sessionID: sid(), ...e })), identity })
+      const body = JSON.stringify({ events: evs.map((e) => ({ ts: Date.now(), sessionID: sid(), ...e })), identity, status })
       const req = http.request(url, { method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } }, (res) => {
         dbg("push ok " + res.statusCode + " n=" + evs.length)
         res.resume()
@@ -99,6 +101,7 @@ export function apply(ctx, config = {}) {
       dbg("push throw " + (e && e.message))
     }
   }
+  const pushStatus = (patch) => push([], null, { [sid()]: patch })
   const statusOf = (p) => {
     const s = (p && (p.status || p.type)) || (p && p.running ? "busy" : "idle")
     if (s === "running" || s === "busy" || s === "working") return "busy"
@@ -126,49 +129,137 @@ export function apply(ctx, config = {}) {
     push([{ kind: "plugin.loaded" }], { harness: "deepseek-harness", agent: "dsh" })
   })
   on("session/created", (s) => push([{ kind: "session.created", title: clip((s && (s.title || s.id)) || "", 120) }]))
-  on("session/before-turn", () => push([{ kind: "session.status", status: "busy" }]))
-  on("session/after-turn", () => push([{ kind: "session.status", status: "idle" }, { kind: "session.idle" }]))
-  on("agent/status", (p) => push([{ kind: "session.status", status: statusOf(p) }]))
-  on("agent/error", (e) => push([{ kind: "session.error", name: (e && e.name) || "AgentError", message: clip(e && e.message, 500) }]))
+  on("session/before-turn", () => {
+    push([{ kind: "session.status", status: "busy" }])
+    pushStatus({ status: "busy" })
+  })
+  on("session/after-turn", () => {
+    push([{ kind: "session.status", status: "idle" }, { kind: "session.idle" }])
+    pushStatus({ status: "idle", currentTool: null })
+  })
+  on("agent/status", (p) => {
+    push([{ kind: "session.status", status: statusOf(p) }])
+    pushStatus({ status: statusOf(p) })
+  })
+  on("agent/error", (e) => {
+    push([{ kind: "session.error", name: (e && e.name) || "AgentError", message: clip(e && e.message, 500) }])
+    pushStatus({ lastError: { name: (e && e.name) || "AgentError", message: clip(e && e.message, 200) } })
+  })
 
-  let envelopeLogged = false
+  const callNames = {}
+  const tokAcc = {}
+  const compCount = {}
+  const msgSteps = new Set()
+  const dumped = {}
+  const dumpOnce = (t, d) => {
+    if (dumped[t]) return
+    dumped[t] = true
+    dbg("payload " + t + " " + clip(d, 900))
+  }
+  let metaPushed = false
+
   on("session/event", (...args) => {
-    const logObj = args[0]
-    if (logObj && logObj.header && logObj.header.id) lastSid = logObj.header.id
-    else if (logObj && logObj.id) lastSid = logObj.id
+    const sess = args[0]
+    if (sess && sess.id) lastSid = sess.id
     const ev = args.find((a) => a && a.type && (a.data || a.seq != null)) || args[1] || args[0] || {}
-    if (!envelopeLogged) {
-      envelopeLogged = true
-      dbg("envelope args=" + args.length + " keys=" + args.map((a) => (a && typeof a === "object" ? Object.keys(a).slice(0, 8).join("|") : typeof a)).join(" / ") + " pickedType=" + ev.type)
-    }
     const t = ev && ev.type
-    dbg("session/event " + t)
     const d = (ev && ev.data) || {}
-    const callID = d.callId || d.call_id || d.id
+    if (!metaPushed && sess && (sess.cwd || sess.agentPreset)) {
+      metaPushed = true
+      push([], { harness: "deepseek-harness", directory: sess.cwd || undefined, agent: sess.agentPreset || "dsh" })
+    }
     if (t === "tool/call") {
-      push([{ kind: "tool.start", dedupe: "ts:" + callID, tool: d.name || d.tool || "tool", callID, status: "running", title: d.name || d.tool, input: clip(d.input ?? d.args, 2000) }])
-      const f = d.input && (d.input.file_path || d.input.path)
-      if (f && ["edit", "write", "str_replace", "apply_patch"].indexOf(String(d.name || d.tool).toLowerCase()) >= 0) push([{ kind: "file.edited", file: f }])
+      const callID = d.callId || d.call_id || d.id
+      const tool = d.name || d.tool || "tool"
+      callNames[callID] = tool
+      let input
+      try {
+        input = typeof d.arguments === "string" ? JSON.parse(d.arguments) : d.input ?? d.args
+      } catch {
+        input = d.arguments
+      }
+      push([{ kind: "tool.start", dedupe: "ts:" + callID, tool, callID, status: "running", title: tool, input: clip(input, 2000) }])
+      pushStatus({ status: "busy", currentTool: { tool, status: "running", title: tool, startedAt: Date.now() } })
+      const f = input && (input.file_path || input.path)
+      const ln = String(tool).toLowerCase()
+      if (f && (["edit", "write", "str_replace", "apply_patch"].indexOf(ln) >= 0 || ln.indexOf("edit") >= 0 || ln.indexOf("write") >= 0 || ln.indexOf("patch") >= 0)) push([{ kind: "file.edited", file: f }])
     } else if (t === "tool/result") {
-      push([{ kind: "tool.end", dedupe: "te:" + callID, tool: d.name || d.tool || "tool", callID, status: d.error || d.isError ? "error" : "completed", title: d.name || d.tool, output: clip(d.output ?? d.result, 1000) }])
-    } else if (t === "step/end") {
-      push([{ kind: "step.finish", dedupe: "sf:" + (ev.seq || 0), reason: d.reason || "stop", tokens: mapTokens(d.usage || d.tokens), cost: 0 }])
-    } else if (t === "turn/start") {
-      push([{ kind: "session.status", status: "busy" }])
-    } else if (t === "turn/end") {
-      push([{ kind: "session.status", status: "idle" }, { kind: "session.idle" }])
+      const msg = d.message || {}
+      const callID = msg.toolCallId || d.callId || d.call_id || d.id
+      const tool = callNames[callID] || d.name || d.tool || "tool"
+      const isErr = !!(d.error || msg.isError || d.isError)
+      push([{ kind: "tool.end", dedupe: "te:" + callID, tool, callID, status: isErr ? "error" : "completed", title: tool, output: clip(msg.content ?? d.output ?? d.result, 1000) }])
+      pushStatus({ currentTool: null })
+      if (isErr) pushStatus({ lastError: { name: (d.error && d.error.name) || tool, message: clip((d.error && (d.error.reason || d.error.code)) || msg.content, 200) } })
+      delete callNames[callID]
     } else if (t === "assistant/message") {
-      const blocks = d.content || []
+      dumpOnce(t, { usage: d.usage, source: d.message && d.message.source })
+      msgSteps.add(d.turn + ":" + d.step)
+      const blocks = (d.message && d.message.content) || d.content || []
       const hasThinking = Array.isArray(blocks) && blocks.some((b) => b && (b.type === "thinking" || b.type === "reasoning"))
       push([{ kind: "part.stream", partType: hasThinking ? "reasoning" : "text" }])
-    } else if (t && t.indexOf("compaction/") === 0) {
-      push([{ kind: t.indexOf("start") >= 0 ? "compaction.start" : "compaction.done", via: "dsh-session-log" }])
+      const src = d.message && d.message.source
+      if (src && (src.model || src.provider)) push([], { harness: "deepseek-harness", modelID: src.model || undefined, providerID: src.provider || undefined })
+      if (d.usage) {
+        const tk = mapTokens(d.usage)
+        push([{ kind: "step.finish", dedupe: "sf:" + (ev.seq || 0), reason: d.interrupted ? "interrupted" : "stop", tokens: tk, cost: 0 }])
+        const s = sid()
+        const acc = (tokAcc[s] = tokAcc[s] || { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 })
+        acc.input += tk.input
+        acc.output += tk.output
+        acc.reasoning += tk.reasoning
+        acc.cacheRead += tk.cache.read
+        acc.cacheWrite += tk.cache.write
+        pushStatus({ tokens: { ...acc }, lastModel: { modelID: src && src.model, providerID: src && src.provider } })
+      }
+    } else if (t === "step/end") {
+      if (!msgSteps.has(d.turn + ":" + d.step)) push([{ kind: "step.finish", dedupe: "se:" + (ev.seq || 0), reason: "stop", tokens: mapTokens(null), cost: 0 }])
+    } else if (t === "turn/start") {
+      push([{ kind: "session.status", status: "busy" }])
+      pushStatus({ status: "busy" })
+    } else if (t === "turn/end") {
+      push([{ kind: "session.status", status: "idle" }, { kind: "session.idle" }])
+      pushStatus({ status: "idle", currentTool: null })
+    } else if (t === "request/context") {
+      dumpOnce(t, d)
+      push([], { harness: "deepseek-harness", modelID: d.model || undefined, providerID: d.provider || undefined, contextWindow: d.contextWindow })
+    } else if (t === "model/selection") {
+      dumpOnce(t, d)
+      push([], { harness: "deepseek-harness", modelID: d.model || undefined, providerID: d.provider || undefined, reasoningEffort: d.reasoningEffort })
     } else if (t === "request/header") {
-      push([], { harness: "deepseek-harness", model: (d.model && (d.model.id || d.model.name)) || d.model || d.modelID || undefined, providerID: (d.provider && (d.provider.id || d.provider.name)) || d.provider || d.providerID || undefined })
+      dumpOnce(t, d.header && d.header.config)
+      const cfg = (d.header && d.header.config) || {}
+      push([], { harness: "deepseek-harness", modelID: cfg.model || undefined, providerID: cfg.provider || undefined, reasoningEffort: cfg.reasoningEffort })
+    } else if (t === "session/title") {
+      dumpOnce(t, d)
+      const title = d.title || d.text || (typeof d === "string" ? d : undefined)
+      if (title) push([], { title: clip(title, 120) })
+    } else if (t && t.indexOf("working-dir") === 0) {
+      if (d.cwd) push([], { directory: d.cwd })
+    } else if (t && t.indexOf("compaction/") === 0) {
+      const s = sid()
+      if (t.indexOf("start") >= 0) {
+        push([{ kind: "compaction.start", via: "dsh-session-log" }])
+        pushStatus({ compacting: true, compactingStartedAt: Date.now() })
+      } else {
+        compCount[s] = (compCount[s] || 0) + 1
+        push([{ kind: "compaction.done", via: "dsh-session-log", count: compCount[s] }])
+        pushStatus({ compacting: false, compactionCount: compCount[s] })
+      }
     } else if (t === "llm/retry" || t === "llm/retry-started") {
       push([{ kind: "api.retry", attempt: d.attempt || 1, statusCode: d.statusCode || d.status }])
+      pushStatus({ status: "retry", retry: { attempt: d.attempt || 1 } })
+    } else if (t === "approval/asked") {
+      push([{ kind: "permission.ask", type: "tool", title: d.toolName || d.id }])
+      pushStatus({ pendingPermission: { type: "tool", title: d.toolName || d.id } })
+    } else if (t === "approval/decided") {
+      push([{ kind: "permission.reply", response: d.outcome }])
+      pushStatus({ pendingPermission: null })
     } else if (t === "todo/write") {
-      push([{ kind: "todo.updated", total: (d.todos || []).length, byStatus: {} }])
+      const todos = d.todos || []
+      const byStatus = {}
+      for (const x of todos) byStatus[x.status] = (byStatus[x.status] || 0) + 1
+      push([{ kind: "todo.updated", total: todos.length, byStatus }])
     }
   })
 
@@ -181,7 +272,10 @@ export function apply(ctx, config = {}) {
       return typeof next === "function" ? next() : undefined
     })
   }
-  waterfall("agent/request", (p) => push([], { harness: "deepseek-harness", model: (p && p.model && (p.model.name || p.model.id)) || (p && p.model) || undefined, providerID: (p && p.provider && (p.provider.name || p.provider.id)) || (p && p.provider) || undefined }))
+  waterfall("agent/request", (p) => {
+    const cfg = (p && p.config) || p || {}
+    push([], { harness: "deepseek-harness", modelID: cfg.model || (p && p.model && (p.model.name || p.model.id)) || undefined, providerID: cfg.provider || (p && p.provider && (p.provider.name || p.provider.id)) || undefined, reasoningEffort: cfg.reasoningEffort })
+  })
 
   dbg("apply done, listeners registered")
   push([{ kind: "plugin.loaded" }], { harness: "deepseek-harness", agent: "dsh" })
