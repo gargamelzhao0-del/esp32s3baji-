@@ -1,0 +1,8 @@
+{
+  "name": "agent-monitor",
+  "version": "1.2.0",
+  "description": "Universal real-time agent observability dashboard for WorkBuddy (local only, 127.0.0.1:17896).",
+  "author": { "name": "gargamelzhao0-del" },
+  "hooks": "./hooks/workbuddy.json",
+  "defaultEnabled": true
+}

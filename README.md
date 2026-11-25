@@ -11,10 +11,11 @@ All servers bind **127.0.0.1 only**. No data leaves the machine. Zero runtime de
 | ChatGPT / Codex desktop | Agent Plugins + lifecycle hooks | http://127.0.0.1:17894 |
 | Codex CLI | same package + hooks | http://127.0.0.1:17894 |
 | Claude Code | same package + hooks (`.claude-plugin`) | http://127.0.0.1:17892 |
+| WorkBuddy (Tencent) | same package + hooks (`.codebuddy-plugin`) | http://127.0.0.1:17896 |
 | DeepSeek Harness | native Cordis plugin (`dsh-plugins/`) | http://127.0.0.1:17893 |
 | opencode / Nuwax | native plugin (`opencode-plugin/`) | http://127.0.0.1:17890 |
 
-The hooks-based package `plugins/agent-monitor` is a single portable [Agent Plugins](https://agent-plugins.org) bundle that auto-detects the host (ChatGPT/Codex vs Claude Code) and picks the right port. It carries `plugin.json`, `.codex-plugin/plugin.json` and `.claude-plugin/plugin.json` so every host recognises it.
+The hooks-based package `plugins/agent-monitor` is a single portable [Agent Plugins](https://agent-plugins.org) bundle that auto-detects the host (ChatGPT/Codex vs Claude Code vs WorkBuddy) and picks the right port. It carries `plugin.json`, `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json` and `.codebuddy-plugin/plugin.json` so every host recognises it. Host detection uses the plugin-root env var each client sets (`PLUGIN_ROOT` → ChatGPT/Codex, `CLAUDE_PLUGIN_ROOT` → Claude, `CODEBUDDY_PLUGIN_ROOT` → WorkBuddy).
 
 ## Install
 
@@ -29,6 +30,7 @@ The hooks-based package `plugins/agent-monitor` is a single portable [Agent Plug
 ```bash
 node install.mjs --platform chatgpt     # ChatGPT / Codex desktop + CLI
 node install.mjs --platform claude      # Claude Code
+node install.mjs --platform workbuddy   # WorkBuddy (one-click file registration)
 node install.mjs --platform dsh         # DeepSeek Harness (prints pnpm spec)
 node install.mjs --platform opencode --project DIR
 node install.mjs --platform all
@@ -43,6 +45,13 @@ codex plugin add agent-monitor@agent-monitor
 claude plugin marketplace add gargamelzhao0-del/esp32s3baji-
 claude plugin install agent-monitor@agent-monitor
 ```
+
+### WorkBuddy (one-click)
+```bash
+node install.mjs --platform workbuddy            # registers marketplace + plugin into ~/.workbuddy-ai
+# or: node install-workbuddy.mjs [--wb-home DIR]
+```
+Then **restart WorkBuddy**. Hooks load automatically (`defaultEnabled`); the dashboard auto-starts on the first event → http://127.0.0.1:17896. Registry backups (`.bak-*`) are kept.
 
 ### DeepSeek Harness (pnpm)
 ```bash
@@ -59,5 +68,7 @@ dsh-plugins/agent-monitor-dsh/ DeepSeek Harness Cordis plugin
 opencode-plugin/agent-status.js opencode/Nuwax plugin
 .agents/plugins/marketplace.json   ChatGPT/Codex marketplace
 .claude-plugin/marketplace.json    Claude Code marketplace
+.codebuddy-plugin/marketplace.json WorkBuddy marketplace
 install.mjs                   universal installer
+install-workbuddy.mjs         WorkBuddy one-click file registration
 ```

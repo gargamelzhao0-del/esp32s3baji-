@@ -44,6 +44,13 @@ const installClaude = () => {
   console.log("\nClaude Code: restart sessions; hooks load from the plugin. Dashboard: http://127.0.0.1:17892")
 }
 
+const installWorkbuddy = () => {
+  const args = [path.join(repoRoot, "install-workbuddy.mjs")]
+  const wb = opt("--wb-home", null)
+  if (wb) args.push("--wb-home", wb)
+  run(process.execPath, args)
+}
+
 const installDsh = () => {
   const spec = "github:" + REPO + "#main&path:/dsh-plugins/agent-monitor-dsh"
   console.log("DeepSeek Harness — install the native Cordis plugin via pnpm:")
@@ -65,14 +72,16 @@ const target = opt("--platform", argv[0] && !argv[0].startsWith("--") ? argv[0] 
 if (target === "chatgpt" || target === "codex") installCodex()
 else if (target === "claude" || target === "claude-code") installClaude()
 else if (target === "dsh") installDsh()
+else if (target === "workbuddy") installWorkbuddy()
 else if (target === "opencode") installOpencode()
 else if (target === "all") {
   installCodex()
   installClaude()
+  installWorkbuddy()
   installDsh()
 } else {
   console.log("agent-monitor — universal installer")
-  console.log("usage: node install.mjs --platform <chatgpt|codex|claude|dsh|opencode|all> [--local REPO_ROOT] [--repo owner/repo] [--project DIR]")
+  console.log("usage: node install.mjs --platform <chatgpt|codex|claude|workbuddy|dsh|opencode|all> [--local REPO_ROOT] [--repo owner/repo] [--project DIR] [--wb-home DIR]")
   console.log("\nAuto-detected CLIs:")
   console.log("  codex:  " + (has("codex") ? "yes" : "no"))
   console.log("  claude: " + (has("claude") ? "yes" : "no"))

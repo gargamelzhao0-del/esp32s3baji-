@@ -12,8 +12,8 @@ const opt = (n, d) => {
   return i >= 0 && argv[i + 1] ? argv[i + 1] : d
 }
 
-const harness = opt("--harness", process.env.PLUGIN_ROOT ? "chatgpt" : process.env.CLAUDE_PLUGIN_ROOT ? "claude-code" : "chatgpt")
-const DEFAULT_PORT = { "chatgpt": 17894, "codex": 17891, "claude-code": 17892 }
+const harness = opt("--harness", process.env.PLUGIN_ROOT ? "chatgpt" : process.env.CODEBUDDY_PLUGIN_ROOT ? "workbuddy" : process.env.CLAUDE_PLUGIN_ROOT ? "claude-code" : "chatgpt")
+const DEFAULT_PORT = { "chatgpt": 17894, "codex": 17891, "claude-code": 17892, "workbuddy": 17896 }
 const port = parseInt(process.env.AGENT_MONITOR_PORT || opt("--port", String(DEFAULT_PORT[harness] || 17894)), 10)
 const url = process.env.AGENT_MONITOR_URL || opt("--url", "http://127.0.0.1:" + port + "/api/ingest")
 const dataDir = process.env.AGENT_MONITOR_DATA_DIR || path.join(os.homedir(), ".agent-monitor", harness === "claude-code" ? "claude" : harness)
@@ -115,7 +115,7 @@ const main = async () => {
   const ts = Date.now()
   const sid = h.session_id || h.sessionId || harness + "-main"
   const events = []
-  const identity = { harness, agent: harness === "claude-code" ? "main" : "codex" }
+  const identity = { harness, agent: harness === "claude-code" ? "main" : harness === "workbuddy" ? "workbuddy" : "codex" }
   if (h.model) identity.modelID = h.model
   if (h.cwd) identity.directory = h.cwd
   let status = null

@@ -1,0 +1,15 @@
+{
+  "name": "agent-monitor",
+  "description": "Universal real-time agent observability dashboard (local only).",
+  "owner": { "name": "gargamelzhao0-del" },
+  "metadata": { "version": "1.0.0" },
+  "plugins": [
+    {
+      "name": "agent-monitor",
+      "description": "Real-time agent activity dashboard: tools, tokens, errors, compaction, permissions. Local-only server on 127.0.0.1:17896.",
+      "source": "./plugins/agent-monitor",
+      "category": "productivity",
+      "version": "1.2.0"
+    }
+  ]
+}
