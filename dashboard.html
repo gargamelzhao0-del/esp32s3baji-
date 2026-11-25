@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Monitor · 大屏导航</title>
+<link rel="stylesheet" href="https://static-resources.nuwax.com/tailwind.min.css">
+<style>
+  body{background:#0d1117;color:#e6edf3;font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:14px;transition:.2s}
+  .card:hover{border-color:#58a6ff;transform:translateY(-2px)}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .on{background:#3fb950;box-shadow:0 0 8px #3fb950}
+  .off{background:#8b949e}
+</style>
+</head>
+<body class="min-h-screen p-6">
+<div class="max-w-4xl mx-auto">
+  <h1 class="text-2xl font-bold mb-1">Agent Monitor · 实时监控大屏</h1>
+  <p class="text-sm text-gray-400 mb-6">点下面对应你客户端的按钮即可打开监控。绿点 = 正在运行。数据仅在本机，不联网外传。</p>
+  <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+  <div class="mt-8 text-sm text-gray-400 card p-4">
+    <p class="font-semibold text-gray-200 mb-2">第一次使用？</p>
+    <ol class="list-decimal list-inside space-y-1">
+      <li>双击「一键安装.bat」完成安装（已完成可跳过）。</li>
+      <li>重启你的客户端（ChatGPT/Codex、Claude、WorkBuddy 等）。</li>
+      <li>ChatGPT/Codex 用户：在「设置 &gt; Hooks」里点「信任」钩子。</li>
+      <li>随便发一条消息或任务，回到本页点对应按钮，即可看到实时活动、工具、Token 等。</li>
+    </ol>
+    <p class="mt-3 text-xs text-gray-500">若按钮一直是灰点：确认客户端已重启、钩子已信任，并已发过一条消息（服务会在首个事件时自动启动）。</p>
+  </div>
+</div>
+<script>
+var platforms=[
+  {name:"ChatGPT / Codex 桌面",port:17894,desc:"ChatGPT 桌面版 / Codex 应用"},
+  {name:"WorkBuddy（腾讯）",port:17896,desc:"WorkBuddy AI 工作台"},
+  {name:"Claude Code",port:17892,desc:"Claude Code 命令行"},
+  {name:"DeepSeek Harness",port:17893,desc:"DeepSeek Harness"},
+  {name:"Codex CLI",port:17891,desc:"Codex 命令行"},
+  {name:"opencode / Nuwax",port:17890,desc:"opencode / 女娲运行时"}
+];
+var grid=document.getElementById("grid");
+grid.innerHTML=platforms.map(function(p,i){
+  return '<a class="card p-5 block" href="http://127.0.0.1:'+p.port+'/" target="_blank" rel="noreferrer">'
+    +'<div class="flex items-center justify-between mb-2"><span class="font-semibold text-lg">'+p.name+'</span><span id="dot'+i+'" class="dot off"></span></div>'
+    +'<div class="text-sm text-gray-400">'+p.desc+'</div>'
+    +'<div id="st'+i+'" class="text-xs text-gray-500 mt-2">检测中…</div>'
+    +'<div class="text-xs text-blue-400 mt-3">打开大屏 → 127.0.0.1:'+p.port+'</div></a>';
+}).join("");
+function tick(){
+  platforms.forEach(function(p,i){
+    fetch("http://127.0.0.1:"+p.port+"/api/state",{cache:"no-store"}).then(function(r){return r.json()}).then(function(d){
+      document.getElementById("dot"+i).className="dot on";
+      var act=(d.activity&&d.activity.label)||"空闲";
+      var n=(d.stats&&d.stats.total)||0;
+      document.getElementById("st"+i).textContent="运行中 · "+act+" · "+n+" 事件";
+    }).catch(function(){
+      document.getElementById("dot"+i).className="dot off";
+      document.getElementById("st"+i).textContent="未运行（发条消息后自动启动）";
+    });
+  });
+}
+tick();setInterval(tick,3000);
+</script>
+</body>
+</html>

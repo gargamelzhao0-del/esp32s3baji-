@@ -68,6 +68,16 @@ const installOpencode = () => {
   console.log("restart the runtime; dashboard: http://127.0.0.1:17890")
 }
 
+const home = os.homedir()
+const detect = () => {
+  const found = []
+  if (has("codex") || fs.existsSync(path.join(home, ".codex"))) found.push("chatgpt")
+  if (has("claude") || fs.existsSync(path.join(home, ".claude"))) found.push("claude")
+  if (fs.existsSync(path.join(home, ".workbuddy-ai", "plugins"))) found.push("workbuddy")
+  if (fs.existsSync(path.join(home, ".dsh"))) found.push("dsh")
+  return found
+}
+
 const target = opt("--platform", argv[0] && !argv[0].startsWith("--") ? argv[0] : "auto")
 if (target === "chatgpt" || target === "codex") installCodex()
 else if (target === "claude" || target === "claude-code") installClaude()
@@ -79,6 +89,20 @@ else if (target === "all") {
   installClaude()
   installWorkbuddy()
   installDsh()
+} else if (target === "auto") {
+  const found = detect()
+  if (!found.length) {
+    console.log("未检测到已安装的客户端（ChatGPT/Codex、Claude Code、WorkBuddy、DeepSeek Harness）。")
+    console.log("请先安装其中任意一个客户端，再重新运行本安装器。")
+  } else {
+    console.log("检测到客户端: " + found.join(", ") + " — 自动安装中…\n")
+    for (const f of found) {
+      if (f === "chatgpt") installCodex()
+      else if (f === "claude") installClaude()
+      else if (f === "workbuddy") installWorkbuddy()
+      else if (f === "dsh") installDsh()
+    }
+  }
 } else {
   console.log("agent-monitor — universal installer")
   console.log("usage: node install.mjs --platform <chatgpt|codex|claude|workbuddy|dsh|opencode|all> [--local REPO_ROOT] [--repo owner/repo] [--project DIR] [--wb-home DIR]")

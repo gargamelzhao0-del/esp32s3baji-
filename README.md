@@ -4,6 +4,15 @@ One plugin, every major agent client. Real-time local-only dashboard: activity b
 
 All servers bind **127.0.0.1 only**. No data leaves the machine. Zero runtime dependencies (Node >= 22).
 
+## 零基础用户（最简单，推荐）
+
+1. 下载本仓库 ZIP（GitHub 页面 **Code → Download ZIP**），解压。
+2. 双击 **`一键安装.bat`**。它会自动检测你装了哪些客户端并全部装好，然后打开「大屏导航」页。
+3. 重启你的客户端；ChatGPT/Codex 用户在 **设置 > Hooks** 点「信任」。
+4. 随便发一条消息，在导航页点对应按钮即可看到实时监控。
+
+> 需要本机有 Node.js 22+（安装器会自动找；没有会提示去 nodejs.org 下载 LTS，一路下一步）。全程不用敲命令。
+
 ## Supported platforms
 
 | Platform | Mechanism | Dashboard |
