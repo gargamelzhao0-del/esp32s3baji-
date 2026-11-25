@@ -1,5 +1,18 @@
 import fs from "node:fs"
 import path from "node:path"
+import http from "node:http"
+
+const pushUrl = process.env.AGENT_MONITOR_URL || "http://127.0.0.1:17890/api/ingest"
+const push = (body) => {
+  try {
+    const u = new URL(pushUrl)
+    const data = JSON.stringify(body)
+    const req = http.request({ host: u.hostname, port: u.port, path: u.pathname, method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) } }, (res) => res.resume())
+    req.on("error", () => {})
+    req.setTimeout(1500, () => req.destroy())
+    req.end(data)
+  } catch {}
+}
 
 export default async ({ directory, client }) => {
   const outDir = path.join(directory, ".tmp", "agent-status")
@@ -19,6 +32,7 @@ export default async ({ directory, client }) => {
       fs.writeFileSync(statusFile, JSON.stringify(state, null, 2))
       lastPersistAt = Date.now()
     } catch {}
+    push({ status: state.sessions, identity: { harness: "opencode", agent: "opencode", directory } })
   }
 
   const maybePersist = () => {
@@ -29,6 +43,7 @@ export default async ({ directory, client }) => {
     try {
       fs.appendFileSync(eventsFile, JSON.stringify({ ...payload, ts: Date.now(), kind, sessionID }) + "\n")
     } catch {}
+    push({ events: [{ ...payload, ts: Date.now(), kind, sessionID }] })
   }
 
   const sess = (id) => {
