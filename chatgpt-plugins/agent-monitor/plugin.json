@@ -1,0 +1,28 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agent-monitor",
+  "version": "1.0.0",
+  "description": "Real-time agent observability. Lifecycle hooks push normalized events to a local-only dashboard at http://127.0.0.1:17894 (activity, tools, tokens, errors, compaction, permissions).",
+  "author": {
+    "name": "gargamelzhao0-del"
+  },
+  "license": "MIT",
+  "keywords": ["observability", "monitor", "dashboard", "hooks"],
+  "extensions": {
+    "com.openai": {
+      "hooks": "./hooks/hooks.json",
+      "interface": {
+        "displayName": "Agent Monitor",
+        "shortDescription": "Real-time agent activity dashboard (local only)",
+        "longDescription": "Streams session, tool, model-request, token, compaction and permission events to a bundled local server bound to 127.0.0.1:17894. Open the dashboard from the plugin skill or http://127.0.0.1:17894. No data leaves the machine.",
+        "developerName": "gargamelzhao0-del",
+        "category": "Productivity",
+        "capabilities": ["Read"],
+        "brandColor": "#58a6ff",
+        "defaultPrompt": [
+          "Open the Agent Monitor dashboard and summarize current agent activity."
+        ]
+      }
+    }
+  }
+}

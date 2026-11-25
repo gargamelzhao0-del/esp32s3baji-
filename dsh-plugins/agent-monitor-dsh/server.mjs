@@ -62,15 +62,16 @@ const ACT_COLORS = {
 }
 const toolCode = (t) => {
   if (!t) return "tool"
-  if (t === "edit" || t === "write" || t === "apply_patch" || t === "patch") return "editing"
-  if (t === "bash" || t === "exec" || t === "shell") return "terminal"
-  if (t === "grep" || t === "glob") return "searching"
-  if (t === "read") return "reading"
-  if (t === "task") return "subagent"
-  if (t === "webfetch" || t === "proxy_web_search") return "web"
-  if (t.indexOf("chrome-devtools") === 0 || t.indexOf("cua_") === 0) return "computer"
-  if (t.indexOf("nuwax-openui") === 0) return "render"
-  if (t.indexOf("ask-question") === 0 || t.indexOf("ask_question") >= 0) return "asking"
+  const tl = String(t).toLowerCase()
+  if (tl === "edit" || tl === "write" || tl === "apply_patch" || tl === "patch") return "editing"
+  if (tl === "bash" || tl === "exec" || tl === "shell" || tl === "exec_command") return "terminal"
+  if (tl === "grep" || tl === "glob") return "searching"
+  if (tl === "read") return "reading"
+  if (tl === "task" || tl === "spawn_agent" || tl === "agent") return "subagent"
+  if (tl === "webfetch" || tl === "proxy_web_search" || tl === "websearch") return "web"
+  if (tl.indexOf("chrome-devtools") === 0 || tl.indexOf("cua_") === 0) return "computer"
+  if (tl.indexOf("nuwax-openui") === 0) return "render"
+  if (tl.indexOf("ask-question") === 0 || tl.indexOf("ask_question") >= 0) return "asking"
   return "tool"
 }
 
@@ -340,7 +341,7 @@ function render(d){
   }).join("");
   var id = d.identity||{};
   var irows = [
-    ["运行时 harness", id.harness==="codex" ? ("Codex · "+(id.originator||"")+" "+(id.cliVersion||"")) : id.harness==="deepseek-harness" ? "DeepSeek Harness" : id.harness==="opencode" ? ("opencode（Nuwax 运行时）"+(id.runtimeVersion||"")) : (id.harness||"—")],
+    ["运行时 harness", id.harness==="codex" ? ("Codex · "+(id.originator||"")+" "+(id.cliVersion||"")) : id.harness==="chatgpt" ? "ChatGPT / Codex 桌面版" : id.harness==="deepseek-harness" ? "DeepSeek Harness" : id.harness==="opencode" ? ("opencode（Nuwax 运行时）"+(id.runtimeVersion||"")) : (id.harness||"—")],
     ["平台智能体", id.platformAgent ? (id.platformAgent.agentName+"（agentId "+id.platformAgent.agentId+"）") : "—"],
     ["会话 agent", (id.agent||"—")+(id.mode?" · mode "+id.mode:"")],
     ["当前模型", (id.providerID?id.providerID+"/":"")+(id.modelID||id.model||"—")],
@@ -615,16 +616,17 @@ const readState = async () => {
   const tool = (ct && ct.tool) || ""
   const lastEdit = events.slice().reverse().find((e) => e.kind === "file.edited")
   const dim = (label, active, value, since) => ({ label, active, value, since: since || null })
-  const isEdit = tool === "edit" || tool === "write"
-  const isSearch = ["grep", "glob", "proxy_web_search", "webfetch"].indexOf(tool) >= 0
-  const isComputer = tool.indexOf("chrome-devtools") === 0 || tool.indexOf("cua_") === 0
+  const toolL = tool.toLowerCase()
+  const isEdit = ["edit", "write", "apply_patch", "patch"].indexOf(toolL) >= 0
+  const isSearch = ["grep", "glob", "proxy_web_search", "webfetch", "websearch"].indexOf(toolL) >= 0
+  const isComputer = toolL.indexOf("chrome-devtools") === 0 || toolL.indexOf("cua_") === 0
   const dimensions = {
     model: dim("模型活动", ["thinking", "responding", "waiting"].indexOf(activity.code) >= 0, activity.label, activity.since),
     tool: dim("工具调用", !!ct, ct ? tool + " · " + ct.status : "无", ct && ct.startedAt),
     edit: dim("文件编辑", isEdit, isEdit ? (ct.title || tool) : (lastEdit ? "最近 " + lastEdit.file : "无"), isEdit ? ct.startedAt : (lastEdit && lastEdit.ts)),
     search: dim("搜索", isSearch, isSearch ? tool : "无", isSearch && ct && ct.startedAt),
     computer: dim("电脑控制", isComputer, isComputer ? tool : "无", isComputer && ct && ct.startedAt),
-    subagent: dim("子智能体", tool === "task", tool === "task" ? tool : "无", tool === "task" && ct && ct.startedAt),
+    subagent: dim("子智能体", toolL === "task" || toolL === "spawn_agent", toolL === "task" || toolL === "spawn_agent" ? tool : "无", (toolL === "task" || toolL === "spawn_agent") && ct && ct.startedAt),
     compaction: dim("上下文压缩", !!s2.compacting, s2.compacting ? "压缩中" : (s2.compactionCount || 0) + " 次", s2.compactingStartedAt),
     permission: dim("权限等待", !!s2.pendingPermission, s2.pendingPermission ? (s2.pendingPermission.title || s2.pendingPermission.type) : "无", null),
     retry: dim("重试", s2.status === "retry", s2.retry ? "第 " + s2.retry.attempt + " 次" : "无", null),
